@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>grabbit — YouTube &amp; Instagram downloader</title>
+<style>
+  :root{
+    --bg:#07080b;
+    --bg-2:#0b0d12;
+    --panel:rgba(255,255,255,.035);
+    --panel-solid:#0f1218;
+    --line:rgba(255,255,255,.085);
+    --line-strong:rgba(255,255,255,.16);
+    --text:#eef2f7;
+    --muted:#8892a4;
+    --muted-2:#5d6675;
+    --yt:#ff2d55;
+    --yt-2:#ff6b3d;
+    --ig-a:#f7d14a;
+    --ig-b:#ee2a7b;
+    --ig-c:#7a35d8;
+    --ok:#34d399;
+    --warn:#fbbf24;
+    --radius:18px;
+    --radius-sm:12px;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --shadow:0 24px 70px -20px rgba(0,0,0,.9), 0 2px 8px rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  }
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(900px 500px at 15% -10%, rgba(255,45,85,.14), transparent 60%),
+      radial-gradient(800px 480px at 85% -5%, rgba(122,53,216,.16), transparent 62%),
+      radial-gradient(700px 500px at 50% 110%, rgba(52,211,153,.07), transparent 60%);
+  }
+  body::after{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.35;
+    background-image:linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+                     linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+    background-size:64px 64px;
+    mask-image:radial-gradient(ellipse at 50% 0%, #000 30%, transparent 75%);
+  }
+  .shell{position:relative; z-index:1}
+  .wrap{max-width:960px; margin:0 auto; padding:0 20px}
+
+  /* ---------------------------------------------------------------- header */
+  header.top{
+    position:sticky; top:0; z-index:50;
+    backdrop-filter:blur(18px) saturate(160%);
+    -webkit-backdrop-filter:blur(18px) saturate(160%);
+    background:rgba(7,8,11,.72);
+    border-bottom:1px solid var(--line);
+  }
+  .top-inner{display:flex; align-items:center; justify-content:space-between; height:64px}
+  .logo{display:flex; align-items:center; gap:11px; text-decoration:none; color:inherit}
+  .mark{
+    width:34px;height:34px;border-radius:11px; position:relative; overflow:hidden;
+    background:conic-gradient(from 200deg, #ff2d55, #ee2a7b, #7a35d8, #2b7fff, #ff2d55);
+    box-shadow:0 4px 16px -4px rgba(238,42,123,.7);
+  }
+  .mark::after{
+    content:""; position:absolute; inset:9px; border-radius:5px;
+    background:var(--bg); box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);
+  }
+  .mark::before{
+    content:""; position:absolute; left:50%; top:50%; width:9px; height:9px; z-index:2;
+    transform:translate(-50%,-50%);
+    border-right:2px solid #fff; border-bottom:2px solid #fff; margin-top:-2px;
+    rotate:45deg; border-radius:1px;
+  }
+  .logo b{font-size:15.5px; letter-spacing:-.3px; font-weight:700}
+  .logo span{font-size:11px; color:var(--muted-2); letter-spacing:.14em; text-transform:uppercase}
+  .status{
+    display:flex; align-items:center; gap:8px; font:600 11.5px var(--mono); color:var(--muted);
+    border:1px solid var(--line); background:var(--panel); padding:7px 12px; border-radius:999px;
+  }
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(52,211,153,.14)}
+  .status.bad .dot{background:var(--warn); box-shadow:0 0 0 3px rgba(251,191,36,.14)}
+
+  /* ------------------------------------------------------------------ hero */
+  .hero{padding:64px 0 34px; text-align:center}
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:8px; font:600 11px var(--mono); letter-spacing:.12em;
+    text-transform:uppercase; color:var(--muted);
+    border:1px solid var(--line); background:var(--panel); border-radius:999px; padding:6px 12px; margin-bottom:20px;
+  }
+  h1{
+    margin:0 0 14px; font-size:clamp(30px,5.2vw,46px); line-height:1.08; letter-spacing:-1.6px; font-weight:750;
+    background:linear-gradient(180deg,#fff 35%, #a9b3c4 100%); -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  h1 em{
+    font-style:normal;
+    background:linear-gradient(100deg,#ff2d55,#ee2a7b 45%,#7a35d8);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .lede{margin:0 auto; max-width:520px; color:var(--muted); font-size:15px}
+
+  /* ------------------------------------------------------------- downloader */
+  .composer{
+    margin:26px auto 0; background:linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.022));
+    border:1px solid var(--line-strong); border-radius:24px; padding:8px; box-shadow:var(--shadow);
+    backdrop-filter:blur(12px);
+  }
+  .composer form{display:flex; gap:8px; align-items:stretch}
+  .field{position:relative; flex:1; display:flex; align-items:center; min-width:0}
+  .field .ico{position:absolute; left:18px; display:grid; place-items:center; color:var(--muted-2); pointer-events:none}
+  .field input{
+    width:100%; height:58px; padding:0 96px 0 52px; border-radius:16px; border:1px solid transparent;
+    background:rgba(0,0,0,.32); color:var(--text); font-size:15px; outline:none; transition:.16s;
+  }
+  .field input::placeholder{color:#5b6473}
+  .field input:focus{border-color:rgba(238,42,123,.45); background:rgba(0,0,0,.45); box-shadow:0 0 0 4px rgba(238,42,123,.08)}
+  .paste{
+    position:absolute; right:12px; height:34px; padding:0 12px; border-radius:9px; border:1px solid var(--line);
+    background:rgba(255,255,255,.05); color:var(--muted); font:600 11.5px var(--mono); letter-spacing:.04em; cursor:pointer;
+  }
+  .paste:hover{color:var(--text); border-color:var(--line-strong)}
+  .go{
+    height:58px; padding:0 26px; border:0; border-radius:16px; cursor:pointer; font-weight:700; font-size:14.5px;
+    color:#180409; background:linear-gradient(135deg,#ff2d55,#ee2a7b 55%,#b637c7);
+    box-shadow:0 10px 30px -12px rgba(238,42,123,.9); transition:.16s; white-space:nowrap;
+    display:inline-flex; align-items:center; gap:9px;
+  }
+  .go:hover{filter:brightness(1.08); transform:translateY(-1px)}
+  .go:active{transform:translateY(0)}
+  .go[disabled]{opacity:.55; cursor:progress; filter:grayscale(.2)}
+  .hint{display:flex; gap:16px; flex-wrap:wrap; justify-content:center; margin:14px 0 0; color:var(--muted-2); font-size:12px}
+  .hint b{color:var(--muted); font-weight:600}
+  .plats{display:flex; gap:8px; justify-content:center; margin-top:12px}
+  .plat{
+    display:inline-flex; align-items:center; gap:7px; font:600 11px var(--mono); letter-spacing:.06em; text-transform:uppercase;
+    color:var(--muted-2); border:1px solid var(--line); border-radius:999px; padding:5px 11px; transition:.15s;
+  }
+  .plat svg{opacity:.7}
+  .plat.on{color:var(--text); border-color:var(--line-strong); background:var(--panel)}
+  .plat.on.yt svg{color:var(--yt); opacity:1}
+  .plat.on.ig svg{color:var(--ig-b); opacity:1}
+
+  /* --------------------------------------------------------------- stage */
+  .stage{margin-top:22px}
+  .glass{
+    background:linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.018));
+    border:1px solid var(--line); border-radius:var(--radius); box-shadow:0 18px 50px -24px rgba(0,0,0,.9);
+  }
+  .card{padding:20px}
+  .meta{display:grid; grid-template-columns:200px 1fr; gap:20px}
+  @media(max-width:680px){.meta{grid-template-columns:1fr}}
+  .thumb{
+    width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:12px; background:#0a0c10; display:block;
+    border:1px solid var(--line);
+  }
+  .kicker{
+    display:inline-flex; align-items:center; gap:7px; font:700 10px var(--mono); letter-spacing:.13em; text-transform:uppercase;
+    padding:4px 9px; border-radius:6px; margin-bottom:10px; color:#fff;
+  }
+  .kicker.yt{background:linear-gradient(120deg,var(--yt),var(--yt-2))}
+  .kicker.ig{background:linear-gradient(120deg,var(--ig-b),var(--ig-c))}
+  .title{font-size:17px; font-weight:650; line-height:1.35; margin:0 0 8px; letter-spacing:-.2px}
+  .facts{display:flex; flex-wrap:wrap; gap:6px 12px; color:var(--muted); font-size:12.5px; margin-bottom:16px}
+  .facts span{display:inline-flex; align-items:center; gap:5px}
+  .facts i{width:3px;height:3px;border-radius:50%;background:var(--muted-2); font-style:normal}
+
+  .seg{display:inline-flex; padding:3px; gap:2px; background:rgba(0,0,0,.34); border:1px solid var(--line); border-radius:12px; margin-bottom:14px}
+  .seg button{
+    padding:8px 16px; border:0; background:none; color:var(--muted); font:600 12.5px inherit;
+    border-radius:9px; cursor:pointer; transition:.14s; font-family:inherit;
+  }
+  .seg button.on{background:rgba(255,255,255,.09); color:var(--text); box-shadow:0 1px 0 rgba(255,255,255,.06) inset}
+  .seg button:hover:not(.on){color:var(--text)}
+
+  .qgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(104px,1fr)); gap:8px; margin-bottom:16px}
+  .qcard{
+    border:1px solid var(--line); background:rgba(255,255,255,.022); border-radius:12px; padding:10px 12px;
+    cursor:pointer; text-align:left; transition:.14s; color:var(--muted); font-family:inherit;
+  }
+  .qcard b{display:block; font:700 14px var(--mono); color:var(--text); letter-spacing:-.2px}
+  .qcard small{display:block; font:500 10.5px var(--mono); color:var(--muted-2); margin-top:3px; letter-spacing:.03em}
+  .qcard:hover{border-color:var(--line-strong); background:rgba(255,255,255,.045)}
+  .qcard.on{border-color:rgba(238,42,123,.7); background:linear-gradient(180deg, rgba(238,42,123,.18), rgba(238,42,123,.06)); box-shadow:0 0 0 1px rgba(238,42,123,.25)}
+  .qcard.on b{color:#fff}
+  .qcard.on small{color:#ffb0cd}
+
+  .cta-row{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+  .cta{
+    height:48px; padding:0 22px; border:0; border-radius:13px; cursor:pointer; font:700 14px inherit; font-family:inherit; color:#180409;
+    background:linear-gradient(135deg,#ff2d55,#ee2a7b 60%,#b637c7); box-shadow:0 10px 26px -14px rgba(238,42,123,.9);
+    transition:.15s; white-space:nowrap;
+  }
+  .cta:hover{filter:brightness(1.08)}
+  .cta[disabled]{opacity:.5; cursor:not-allowed; filter:grayscale(.3)}
+  .cta-sub{color:var(--muted-2); font-size:12px}
+
+  /* ------------------------------------------------------------- ig items */
+  .iggrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:9px; margin-bottom:16px}
+  .tile{
+    position:relative; aspect-ratio:1; border-radius:12px; overflow:hidden; cursor:pointer;
+    background:#0a0c10; border:1px solid var(--line); transition:.14s;
+  }
+  .tile img{width:100%; height:100%; object-fit:cover; display:block; transition:.25s}
+  .tile:hover img{transform:scale(1.06)}
+  .tile .ph{width:100%;height:100%;display:grid;place-items:center;color:#39424f;font:700 20px var(--mono)}
+  .tile .tag{
+    position:absolute; left:7px; top:7px; font:700 9px var(--mono); letter-spacing:.1em; text-transform:uppercase;
+    padding:3px 6px; border-radius:5px; background:rgba(0,0,0,.7); backdrop-filter:blur(4px); color:#e6ebf3;
+  }
+  .tile .check{
+    position:absolute; right:7px; top:7px; width:20px; height:20px; border-radius:7px; display:grid; place-items:center;
+    border:1px solid rgba(255,255,255,.4); background:rgba(0,0,0,.55); backdrop-filter:blur(4px);
+    font-size:11px; color:transparent; transition:.14s;
+  }
+  .tile.on{border-color:rgba(238,42,123,.85); box-shadow:0 0 0 1px rgba(238,42,123,.55)}
+  .tile.on .check{background:linear-gradient(135deg,#ee2a7b,#7a35d8); border-color:transparent; color:#fff}
+  .tile.on img{opacity:.82}
+
+  /* ----------------------------------------------------------------- jobs */
+  .section-head{display:flex; align-items:baseline; justify-content:space-between; margin:36px 0 12px}
+  .section-head h2{margin:0; font-size:13px; font-weight:650; letter-spacing:.1em; text-transform:uppercase; color:var(--muted)}
+  .section-head .count{font:600 11px var(--mono); color:var(--muted-2)}
+  .jobs{display:flex; flex-direction:column; gap:9px}
+  .job{padding:14px 16px; border-radius:14px; border:1px solid var(--line); background:var(--panel)}
+  .job-head{display:flex; align-items:center; gap:10px; margin-bottom:9px}
+  .job-name{font-size:13.5px; font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .chip{
+    font:700 9.5px var(--mono); letter-spacing:.11em; text-transform:uppercase; padding:5px 8px; border-radius:6px;
+    background:rgba(255,255,255,.05); border:1px solid var(--line); color:var(--muted); white-space:nowrap;
+  }
+  .chip.done{color:#8cf0c4; border-color:rgba(52,211,153,.3); background:rgba(52,211,153,.08)}
+  .chip.error{color:#ff9aae; border-color:rgba(255,45,85,.32); background:rgba(255,45,85,.08)}
+  .chip.running{color:#ffc6a8; border-color:rgba(255,139,61,.3); background:rgba(255,139,61,.08)}
+  .track{height:5px; border-radius:99px; background:rgba(0,0,0,.5); overflow:hidden}
+  .fill{height:100%; width:0; border-radius:99px; background:linear-gradient(90deg,#ff2d55,#ee2a7b,#7a35d8); transition:width .4s cubic-bezier(.4,0,.2,1)}
+  .job-foot{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:9px; min-height:26px}
+  .stat{font:500 11.5px var(--mono); color:var(--muted-2); display:flex; gap:10px; flex-wrap:wrap}
+  .stat b{color:var(--muted); font-weight:600}
+  .actions{display:flex; gap:7px}
+  .mini{
+    padding:6px 12px; border-radius:9px; font:600 11.5px var(--mono); letter-spacing:.02em; cursor:pointer;
+    border:1px solid var(--line); background:rgba(255,255,255,.04); color:var(--muted); text-decoration:none;
+  }
+  .mini:hover{color:var(--text); border-color:var(--line-strong)}
+  .mini.primary{
+    border:0; color:#180409; background:linear-gradient(135deg,#ff2d55,#ee2a7b); box-shadow:0 8px 20px -12px rgba(238,42,123,.9);
+  }
+  .mini.primary:hover{filter:brightness(1.1)}
+  .err{margin-top:9px; font:500 11.5px/1.5 var(--mono); color:#ff9aae; word-break:break-word}
+
+  /* --------------------------------------------------------------- extras */
+  .skeleton{height:200px; border-radius:var(--radius); border:1px solid var(--line); position:relative; overflow:hidden; background:rgba(255,255,255,.02)}
+  .skeleton::after{
+    content:""; position:absolute; inset:0;
+    background:linear-gradient(100deg, transparent 20%, rgba(255,255,255,.06) 45%, transparent 70%);
+    background-size:220% 100%; animation:sh 1.2s infinite;
+  }
+  @keyframes sh{to{background-position:-220% 0}}
+  .spin{width:14px;height:14px;border-radius:50%;border:2px solid rgba(0,0,0,.28);border-top-color:#180409;animation:sp .6s linear infinite;display:inline-block}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .features{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-top:46px}
+  .feat{padding:18px; border-radius:14px; border:1px solid var(--line); background:var(--panel)}
+  .feat h3{margin:0 0 6px; font-size:13px; font-weight:650; letter-spacing:.02em}
+  .feat p{margin:0; color:var(--muted-2); font-size:12.5px; line-height:1.6}
+  .feat .n{font:700 10px var(--mono); letter-spacing:.14em; color:var(--ig-b); margin-bottom:10px; display:block}
+  footer{margin:50px 0 40px; padding-top:22px; border-top:1px solid var(--line); display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap; color:var(--muted-2); font-size:12px}
+  footer a{color:var(--muted); text-decoration:none; border-bottom:1px solid transparent}
+  footer a:hover{border-color:var(--muted-2)}
+  .toast{
+    position:fixed; left:50%; bottom:26px; translate:-50% 0; z-index:100;
+    background:#151922; border:1px solid var(--line-strong); color:var(--text);
+    padding:12px 18px; border-radius:12px; font-size:13px; box-shadow:var(--shadow);
+    opacity:0; pointer-events:none; transition:.22s;
+  }
+  .toast.show{opacity:1; translate:-50% -6px}
+  .toast.bad{border-color:rgba(255,45,85,.45)}
+  @media(max-width:560px){
+    .hero{padding:40px 0 24px}
+    .composer form{flex-direction:column}
+    .go{justify-content:center}
+    .field input{padding-right:84px}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="logo" href="/">
+        <div class="mark"></div>
+        <div>
+          <b>grabbit</b><br>
+          <span>youtube · instagram</span>
+        </div>
+      </a>
+      <div class="status" id="health"><span class="dot"></span><span id="healthText">connecting</span></div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <div class="eyebrow">no login · no ads · direct file</div>
+      <h1>Grab <em>any video</em><br>in the quality you want.</h1>
+      <p class="lede">Paste a YouTube or Instagram link. Pick 4K, 1080p, or audio only. The server downloads it and hands you the file.</p>
+
+      <div class="composer">
+        <form id="form" autocomplete="off">
+          <div class="field">
+            <span class="ico" id="platIcon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/>
+                <path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>
+              </svg>
+            </span>
+            <input id="url" type="text" spellcheck="false"
+                   placeholder="Paste a link — youtube.com/watch?v=… or instagram.com/reel/…">
+            <button class="paste" id="pasteBtn" type="button">PASTE</button>
+          </div>
+          <button class="go" id="fetch" type="submit">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 4v12"/><path d="m6 12 6 6 6-6"/><path d="M4 20h16"/>
+            </svg>
+            Fetch
+          </button>
+        </form>
+      </div>
+
+      <div class="plats">
+        <span class="plat yt" id="platYt">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-4-.5-5.7a2.6 2.6 0 0 0-1.8-1.8C19 4 12 4 12 4s-7 0-8.7.5A2.6 2.6 0 0 0 1.5 6.3C1 8 1 12 1 12s0 4 .5 5.7a2.6 2.6 0 0 0 1.8 1.8C5 20 12 20 12 20s7 0 8.7-.5a2.6 2.6 0 0 0 1.8-1.8C23 16 23 12 23 12ZM10 15.5v-7l6 3.5-6 3.5Z"/></svg>
+          YouTube
+        </span>
+        <span class="plat ig" id="platIg">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/></svg>
+          Instagram
+        </span>
+      </div>
+
+      <div class="hint">
+        <span><b>Video</b> up to 4K</span>
+        <span><b>Audio</b> mp3 / m4a / opus / wav</span>
+        <span><b>Carousels</b> as one zip</span>
+      </div>
+    </section>
+
+    <section class="stage" id="stage"></section>
+
+    <section id="jobsSection" class="hidden">
+      <div class="section-head">
+        <h2>Downloads</h2>
+        <span class="count" id="jobsCount"></span>
+      </div>
+      <div class="jobs" id="jobs"></div>
+    </section>
+
+    <div class="features">
+      <div class="feat">
+        <span class="n">01</span>
+        <h3>Pick the quality</h3>
+        <p>Streams are merged server-side with ffmpeg, so 4K keeps its audio instead of falling back to a 720p blob.</p>
+      </div>
+      <div class="feat">
+        <span class="n">02</span>
+        <h3>Audio only</h3>
+        <p>One click to rip the soundtrack as mp3, m4a, opus, or lossless wav. No video file left behind.</p>
+      </div>
+      <div class="feat">
+        <span class="n">03</span>
+        <h3>Instagram native</h3>
+        <p>Reels, posts, stories, and carousels. Multi-item posts come back as a single tidy zip.</p>
+      </div>
+    </div>
+
+    <footer>
+      <span>Files auto-delete from the server after one hour. Nothing is logged.</span>
+      <span>built on yt-dlp</span>
+    </footer>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+{% raw %}
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const el = (tag, cls, text) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  };
+
+  const state = {
+    info: null,
+    mode: "video",
+    quality: "best",
+    audio: "mp3",
+    selected: new Set(),
+    jobs: new Map(),
+    timer: null,
+    autoSaved: new Set(),
+  };
+
+  window.__dbg = state;
+
+  // ------------------------------------------------------------ formatting
+  const fmtBytes = (b) => {
+    if (!b || b < 0) return "—";
+    const u = ["B", "KB", "MB", "GB"];
+    let i = 0, n = b;
+    while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+    return n.toFixed(i > 0 && n < 10 ? 1 : 0) + " " + u[i];
+  };
+  const fmtSpeed = (s) => (!s ? null : fmtBytes(s) + "/s");
+  const fmtEta = (s) => {
+    if (s == null) return null;
+    if (s <= 0) return "0s";
+    const m = Math.floor(s / 60), sec = Math.round(s % 60);
+    return m ? m + "m " + sec + "s" : sec + "s";
+  };
+  const fmtDur = (s) => {
+    if (!s) return null;
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
+    return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(sec).padStart(2, "0");
+  };
+  const fmtViews = (v) => {
+    if (!v) return null;
+    if (v >= 1e9) return (v / 1e9).toFixed(1) + "B views";
+    if (v >= 1e6) return (v / 1e6).toFixed(1) + "M views";
+    if (v >= 1e3) return (v / 1e3).toFixed(1) + "K views";
+    return v + " views";
+  };
+  const qualLabel = (h) => ({ 2160: "4K", 1440: "2K", 1080: "Full HD", 720: "HD", 480: "SD" }[h] || "");
+  const sizeLabel = (h) => (h >= 2160 ? "mp4 · huge" : h >= 1080 ? "mp4 · merged" : "mp4 · light");
+
+  const toast = (msg, bad) => {
+    const t = $("#toast");
+    t.textContent = msg;
+    t.className = "toast show" + (bad ? " bad" : "");
+    clearTimeout(t._t);
+    t._t = setTimeout(() => { t.className = "toast" + (bad ? " bad" : ""); }, 4200);
+  };
+
+  const api = async (path, opts) => {
+    const res = await fetch(path, opts);
+    let data = {};
+    try { data = await res.json(); } catch { /* empty body */ }
+    if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+    return data;
+  };
+
+  // ---------------------------------------------------------------- health
+  api("/api/health").then((h) => {
+    const box = $("#health");
+    const txt = $("#healthText");
+    const bits = [h.ffmpeg ? "ffmpeg ok" : "no ffmpeg", "yt-dlp " + h.yt_dlp];
+    if (h.cookies && h.cookies !== "none") bits.push("cookies");
+    txt.textContent = bits.join(" · ");
+    box.title = h.ffmpeg
+      ? "Full quality with merged streams and audio conversion."
+      : "ffmpeg missing: progressive streams only, audio stays in its native container.";
+    box.classList.toggle("bad", !h.ffmpeg);
+  }).catch(() => {
+    $("#healthText").textContent = "offline";
+    $("#health").classList.add("bad");
+  });
+
+  // ------------------------------------------------------- platform detect
+  const detect = (raw) => {
+    const v = (raw || "").toLowerCase();
+    if (/instagram\.com|instagr\.am/.test(v)) return "instagram";
+    if (/youtube\.com|youtu\.be/.test(v)) return "youtube";
+    return null;
+  };
+  const paintPlatform = (plat) => {
+    $("#platYt").classList.toggle("on", plat === "youtube");
+    $("#platIg").classList.toggle("on", plat === "instagram");
+  };
+  $("#url").addEventListener("input", (e) => paintPlatform(detect(e.target.value)));
+
+  $("#pasteBtn").addEventListener("click", async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) return toast("Clipboard is empty", true);
+      $("#url").value = text.trim();
+      paintPlatform(detect(text));
+      $("#form").dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+    } catch {
+      $("#url").focus();
+      toast("Clipboard blocked — paste with Ctrl+V", true);
+    }
+  });
+
+  // ------------------------------------------------------------------ info
+  $("#form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const url = $("#url").value.trim();
+    if (!url) { $("#url").focus(); return toast("Paste a link first", true); }
+
+    const btn = $("#fetch");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span> Fetching';
+    $("#stage").innerHTML = '<div class="skeleton"></div>';
+
+    try {
+      const info = await api("/api/info", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      state.info = info;
+      state.mode = "video";
+      state.quality = "best";
+      state.audio = (info.audio_formats && info.audio_formats[0]) || "m4a";
+      state.selected = new Set((info.items || []).map((it) => it.index));
+      render();
+    } catch (err) {
+      $("#stage").innerHTML = "";
+      const card = el("div", "glass card");
+      card.appendChild(el("div", "title", "Could not read that link"));
+      card.appendChild(el("div", "err", err.message));
+      $("#stage").appendChild(card);
+      toast(err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"/><path d="m6 12 6 6 6-6"/><path d="M4 20h16"/></svg> Fetch';
+    }
+  });
+
+  // ---------------------------------------------------------------- render
+  function render() {
+    if (!state.info) return;
+    state.info.platform === "instagram" ? renderInstagram() : renderYouTube();
+  }
+
+  function renderYouTube() {
+    const i = state.info;
+    const stage = $("#stage");
+    stage.innerHTML = "";
+
+    const card = el("div", "glass card");
+    const meta = el("div", "meta");
+
+    const img = el("img", "thumb");
+    img.src = i.thumbnail || "";
+    img.alt = "";
+    img.loading = "lazy";
+
+    const right = el("div");
+    const kicker = el("span", "kicker yt", "YouTube");
+    right.appendChild(kicker);
+    right.appendChild(el("div", "title", i.title || "Untitled"));
+
+    const facts = el("div", "facts");
+    [i.channel, fmtDur(i.duration), fmtViews(i.view_count), i.is_live ? "LIVE" : null]
+      .filter(Boolean)
+      .forEach((f) => facts.appendChild(el("span", null, f)));
+    right.appendChild(facts);
+
+    const seg = el("div", "seg");
+    ["video", "audio"].forEach((m) => {
+      const b = el("button", m === state.mode ? "on" : "", m === "video" ? "Video" : "Audio only");
+      b.type = "button";
+      b.onclick = () => { state.mode = m; renderYouTube(); };
+      seg.appendChild(b);
+    });
+    right.appendChild(seg);
+    right.appendChild(state.mode === "video" ? qualityGrid(i) : audioGrid(i));
+
+    const row = el("div", "cta-row");
+    const cta = el("button", "cta", state.mode === "video" ? "Download video" : "Download audio");
+    cta.type = "button";
+    cta.onclick = startJob;
+    row.appendChild(cta);
+    if (state.mode === "video" && state.quality !== "best") {
+      row.appendChild(el("span", "cta-sub", "up to " + state.quality + "p, video + audio merged"));
+    } else if (state.mode === "video") {
+      row.appendChild(el("span", "cta-sub", "the highest resolution this video offers"));
+    } else {
+      row.appendChild(el("span", "cta-sub", state.audio.toUpperCase() + " · converted server-side"));
+    }
+    right.appendChild(row);
+
+    meta.append(img, right);
+    card.appendChild(meta);
+    stage.appendChild(card);
+  }
+
+  function qualityGrid(info) {
+    const grid = el("div", "qgrid");
+    if (!info.heights.length) {
+      grid.appendChild(el("div", "err", "This video reports no video streams."));
+      return grid;
+    }
+    info.heights.forEach((h) => {
+      const b = el("button", "qcard" + (state.quality === String(h) ? " on" : ""));
+      b.type = "button";
+      b.appendChild(el("b", null, h + "p"));
+      b.appendChild(el("small", null, qualLabel(h) || sizeLabel(h)));
+      b.onclick = () => { state.quality = String(h); renderYouTube(); };
+      grid.appendChild(b);
+    });
+    const best = el("button", "qcard" + (state.quality === "best" ? " on" : ""));
+    best.type = "button";
+    best.appendChild(el("b", null, "best"));
+    best.appendChild(el("small", null, "max quality"));
+    best.onclick = () => { state.quality = "best"; renderYouTube(); };
+    grid.appendChild(best);
+    return grid;
+  }
+
+  function audioGrid(info) {
+    const grid = el("div", "qgrid");
+    const formats = info.audio_formats || ["m4a"];
+    const labels = { mp3: "192 kbps", m4a: "192 kbps", opus: "160 kbps", wav: "lossless" };
+    formats.forEach((f) => {
+      const b = el("button", "qcard" + (state.audio === f ? " on" : ""));
+      b.type = "button";
+      b.appendChild(el("b", null, f));
+      b.appendChild(el("small", null, labels[f] || ""));
+      b.onclick = () => { state.audio = f; renderYouTube(); };
+      grid.appendChild(b);
+    });
+    if (!info.ffmpeg) grid.appendChild(el("div", "err", "ffmpeg missing — native container only, no conversion."));
+    return grid;
+  }
+
+  function renderInstagram() {
+    const i = state.info;
+    const stage = $("#stage");
+    stage.innerHTML = "";
+
+    const card = el("div", "glass card");
+    const kicker = el("span", "kicker ig", "Instagram");
+    card.appendChild(kicker);
+    card.appendChild(el("div", "title", i.title || "Instagram media"));
+
+    const count = i.item_count || 0;
+    const kindLabel = { single: "post", carousel: "carousel", listing: "profile feed", story: "story" }[i.kind] || i.kind;
+    const facts = el("div", "facts");
+    [i.author, kindLabel, count + (count === 1 ? " item" : " items")]
+      .filter(Boolean)
+      .forEach((f) => facts.appendChild(el("span", null, f)));
+    card.appendChild(facts);
+
+    if (i.note) {
+      const note = el("div", "err", i.note);
+      note.style.color = "var(--muted)";
+      card.appendChild(note);
+    }
+
+    const grid = el("div", "iggrid");
+    (i.items || []).forEach((it) => {
+      const tile = el("div", "tile" + (state.selected.has(it.index) ? " on" : ""));
+      tile.title = it.title || it.type;
+      if (it.thumbnail) {
+        const img = el("img");
+        img.src = it.thumbnail;
+        img.alt = "";
+        img.loading = "lazy";
+        tile.appendChild(img);
+      } else {
+        tile.appendChild(el("div", "ph", "▢"));
+      }
+      tile.appendChild(el("span", "tag", it.type));
+      tile.appendChild(el("span", "check", "✓"));
+      tile.onclick = () => {
+        state.selected.has(it.index) ? state.selected.delete(it.index) : state.selected.add(it.index);
+        renderInstagram();
+      };
+      grid.appendChild(tile);
+    });
+    card.appendChild(grid);
+
+    const row = el("div", "cta-row");
+    const all = (i.items || []).length;
+    const pick = el("button", "mini", state.selected.size === all ? "Clear all" : "Select all");
+    pick.type = "button";
+    pick.onclick = () => {
+      state.selected = state.selected.size === all ? new Set() : new Set(i.items.map((x) => x.index));
+      renderInstagram();
+    };
+    row.appendChild(pick);
+
+    const n = state.selected.size;
+    const cta = el("button", "cta", n ? "Download " + n + (n === 1 ? " item" : " items") : "Nothing selected");
+    cta.type = "button";
+    cta.disabled = !n;
+    cta.onclick = startJob;
+    row.appendChild(cta);
+    if (n > 1) row.appendChild(el("span", "cta-sub", "arrives as one zip"));
+    card.appendChild(row);
+
+    stage.appendChild(card);
+  }
+
+  // ------------------------------------------------------------------ jobs
+  async function startJob() {
+    if (!state.info) return;
+    const body = { url: state.info.webpage_url || $("#url").value.trim() };
+    if (state.info.platform === "instagram") {
+      body.mode = "instagram";
+      body.selection = [...state.selected].sort((a, b) => a - b);
+    } else {
+      body.mode = state.mode;
+      body.quality = state.quality;
+      body.audio_format = state.audio;
+    }
+    try {
+      const job = await api("/api/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      state.jobs.set(job.id, job);
+      $("#jobsSection").classList.remove("hidden");
+      renderJobs();
+      poll();
+      state.timer = setInterval(poll, 700);
+      window.scrollTo({ top: $("#jobsSection").offsetTop - 90, behavior: "smooth" });
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  function renderJobs() {
+    const host = $("#jobs");
+    const jobs = [...state.jobs.values()].sort((a, b) => b.created - a.created);
+    $("#jobsCount").textContent = jobs.length ? jobs.length + " · newest first" : "";
+    host.innerHTML = "";
+    jobs.forEach((j) => host.appendChild(jobRow(j)));
+  }
+
+  function jobRow(j) {
+    const row = el("div", "job");
+    const head = el("div", "job-head");
+    head.appendChild(el("div", "job-name", j.title || j.filename || j.url));
+
+    const label = j.status === "running" ? (j.phase === "processing" ? "processing" : "downloading") : j.status;
+    head.appendChild(el("span", "chip " + j.status, label));
+    row.appendChild(head);
+
+    const track = el("div", "track");
+    const fill = el("div", "fill");
+    fill.style.width = Math.max(0, Math.min(100, j.percent || 0)) + "%";
+    track.appendChild(fill);
+    row.appendChild(track);
+
+    const foot = el("div", "job-foot");
+    const stat = el("div", "stat");
+    if (j.status === "done") {
+      stat.appendChild(el("b", null, fmtBytes(j.total)));
+      stat.appendChild(el("span", null, j.elapsed + "s"));
+    } else if (j.status === "error" || j.status === "cancelled") {
+      stat.appendChild(el("span", null, j.status === "cancelled" ? "cancelled" : "failed"));
+    } else {
+      stat.appendChild(el("b", null, (j.percent || 0).toFixed(0) + "%"));
+      if (j.total) stat.appendChild(el("span", null, fmtBytes(j.downloaded) + " / " + fmtBytes(j.total)));
+      const sp = fmtSpeed(j.speed);
+      if (sp) stat.appendChild(el("span", null, sp));
+      const eta = fmtEta(j.eta);
+      if (eta) stat.appendChild(el("span", null, "eta " + eta));
+    }
+    foot.appendChild(stat);
+
+    const actions = el("div", "actions");
+    if (j.status === "done") {
+      const a = el("a", "mini primary", "Save file");
+      a.href = j.download_url;
+      a.download = j.filename || "";
+      actions.appendChild(a);
+      if (!state.autoSaved.has(j.id)) {
+        state.autoSaved.add(j.id);
+        const ghost = el("a");
+        ghost.href = j.download_url;
+        ghost.download = j.filename || "";
+        ghost.style.display = "none";
+        document.body.appendChild(ghost);
+        ghost.click();
+        setTimeout(() => ghost.remove(), 1200);
+      }
+    } else if (j.status === "running" || j.status === "queued") {
+      const c = el("button", "mini", "Cancel");
+      c.type = "button";
+      c.onclick = async () => {
+        try { await api("/api/jobs/" + j.id, { method: "DELETE" }); } catch {}
+        state.jobs.delete(j.id);
+        renderJobs();
+      };
+      actions.appendChild(c);
+    } else {
+      const d = el("button", "mini", "Dismiss");
+      d.type = "button";
+      d.onclick = async () => {
+        try { await api("/api/jobs/" + j.id, { method: "DELETE" }); } catch {}
+        state.jobs.delete(j.id);
+        renderJobs();
+      };
+      actions.appendChild(d);
+    }
+    foot.appendChild(actions);
+    row.appendChild(foot);
+
+    if (j.error && j.status !== "cancelled") row.appendChild(el("div", "err", j.error));
+    return row;
+  }
+
+  async function poll() {
+    const active = [...state.jobs.values()].filter((j) => j.status === "running" || j.status === "queued");
+    if (!active.length) {
+      clearInterval(state.timer);
+      state.timer = null;
+      return;
+    }
+    await Promise.all(active.map(async (j) => {
+      try {
+        state.jobs.set(j.id, await api("/api/jobs/" + j.id));
+      } catch {
+        state.jobs.delete(j.id);
+      }
+    }));
+    renderJobs();
+  }
+})();
+</script>
+{% endraw %}
+</body>
+</html>

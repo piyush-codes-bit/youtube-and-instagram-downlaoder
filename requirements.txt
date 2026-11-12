@@ -1,0 +1,5 @@
+Flask>=3.0,<4
+yt-dlp>=2025.1.1
+# Bundles an ffmpeg binary: needed to merge video+audio and to convert audio.
+# Drop this line if ffmpeg is already on PATH.
+imageio-ffmpeg>=0.5
