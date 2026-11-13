@@ -151,3 +151,7 @@ network, no pytest.
 - Live streams are reported in `/api/info` but queue as an unbounded download.
 - Polling is intentional — swap in SSE in `poll()` if you want push instead.
 - Downloading copyrighted material without permission is on you, not the code.
+
+
+this is an vibecoded website made by me so if there are any errors i am not responsible for ts 
+thanks :)
